@@ -66,15 +66,18 @@ app.use((req, res, next) => {
 // Use official Stremio SDK router
 app.use(addonRouter);
 
-// Helper to get title from Cinemeta
-async function getMediaTitle(id, type) {
+// Helper to get metadata from Cinemeta
+async function getMediaMetadata(id, type) {
     try {
         const imdbId = id.split(':')[0];
         const url = `https://v3-cinemeta.strem.io/meta/${type}/${imdbId}.json`;
-        console.log(`[Cinemeta] Fetching title for ${imdbId}...`);
+        console.log(`[Cinemeta] Fetching metadata for ${imdbId}...`);
         const response = await axios.get(url, { timeout: 5000 });
-        if (response.data && response.data.meta && response.data.meta.name) {
-            return response.data.meta.name;
+        if (response.data && response.data.meta) {
+            return {
+                name: response.data.meta.name,
+                year: response.data.meta.year || response.data.meta.releaseInfo || ''
+            };
         }
     } catch (err) {
         console.error('[Cinemeta] Error:', err.message);
@@ -122,9 +125,10 @@ app.get('/sub/:provider/:id.srt', async (req, res) => {
                 if (!subs || subs.length === 0) {
                     console.log(`[Proxy] No subtitles found by ID on SubDL, trying Title search...`);
                     const type = id.includes(':') ? 'series' : 'movie';
-                    const title = await getMediaTitle(id, type);
-                    if (title) {
-                        subs = await subdl.searchSubtitles(null, season, episode, subdlApiKey, title);
+                    const meta = await getMediaMetadata(id, type);
+                    if (meta) {
+                        const searchTitle = `${meta.name} ${meta.year}`.trim();
+                        subs = await subdl.searchSubtitles(null, season, episode, subdlApiKey, searchTitle);
                     }
                 }
             }
@@ -143,6 +147,9 @@ app.get('/sub/:provider/:id.srt', async (req, res) => {
             for (let i = 0; i < Math.min(subs.length, 3); i++) {
                 const currentSub = subs[i];
                 console.log(`[Proxy] Downloading subtitle #${i + 1} from ${currentSub.url.includes('subdl') ? 'SubDL' : 'OpenSubs'}...`);
+                if (currentSub.release) {
+                    console.log(`[Proxy] Release: ${currentSub.release}`);
+                }
                 
                 if (currentSub.url.includes('subdl.com')) {
                     englishSrt = await subdl.downloadSubtitle(currentSub.url);

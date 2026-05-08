@@ -162,9 +162,9 @@ app.get('/sub/:provider/:id.srt', async (req, res) => {
             // Download the first working subtitle
             for (let i = 0; i < Math.min(subs.length, 3); i++) {
                 const currentSub = subs[i];
-                console.log(`[Proxy] Downloading subtitle #${i + 1} from ${currentSub.url.includes('subdl') ? 'SubDL' : 'OpenSubs'}...`);
+                console.log(`[Proxy] Candidate #${i + 1} from ${currentSub.url.includes('subdl') ? 'SubDL' : 'OpenSubs'}`);
                 if (currentSub.release) {
-                    console.log(`[Proxy] Release: ${currentSub.release}`);
+                    console.log(`[Proxy] Checking in release: ${currentSub.release}`);
                 }
                 
                 if (currentSub.url.includes('subdl.com')) {

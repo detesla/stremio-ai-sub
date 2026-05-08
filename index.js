@@ -14,7 +14,7 @@ const manifest = {
     id: 'community.ai.subtitles.vn',
     version: '1.0.0',
     name: 'AI Vietnamese Subtitles',
-    description: 'Bản dịch phụ đề tiếng Việt sử dụng Gemini Pro & Groq Llama 3',
+    description: 'Bản dịch phụ đề tiếng Việt AI (Gemini & Groq)',
     resources: ['subtitles'],
     types: ['movie', 'series'],
     catalogs: [],
@@ -40,7 +40,7 @@ builder.defineSubtitlesHandler(async (args) => {
             id: `ai_groq_${id}`,
             url: `${baseUrl}/sub/groq/${id}.srt`,
             lang: 'vie',
-            label: '🇻🇳 AI Vietnamese (Groq Llama 3)'
+            label: '🇻🇳 AI Vietnamese (AI Dịch)'
         }
     ];
 

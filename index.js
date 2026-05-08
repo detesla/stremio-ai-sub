@@ -135,5 +135,10 @@ app.get('/sub/:provider/:id.srt', async (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`AI Subtitle Add-on running at http://localhost:${PORT}/manifest.json`);
-    console.log('Ensure you have configured .env with API keys.');
+    console.log('--- Environment Check ---');
+    console.log('GEMINI_API_KEY:', process.env.GEMINI_API_KEY ? '✅' : '❌');
+    console.log('GROQ_API_KEY:', process.env.GROQ_API_KEY ? '✅' : '❌');
+    console.log('OPENSUBTITLES_API_KEY:', process.env.OPENSUBTITLES_API_KEY ? '✅' : '❌');
+    console.log('OPENSUBTITLES_USERNAME:', process.env.OPENSUBTITLES_USERNAME ? '✅' : '❌');
+    console.log('-------------------------');
 });

@@ -84,77 +84,29 @@ app.get('/sub/:provider/:id.srt', async (req, res) => {
             return res.header('Content-Type', 'text/plain').send(srtContent);
         }
 
-        // 2. OpenSubtitles Login & Search
-        if (!osToken) {
-            console.log('Logging in to OpenSubtitles...');
-            osToken = await opensubs.login(
-                process.env.OPENSUBTITLES_USERNAME,
-                process.env.OPENSUBTITLES_PASSWORD,
-                process.env.OPENSUBTITLES_API_KEY
-            );
-        }
-
+        // 2. Search Subtitles via Proxy
         let imdbId = id;
         let season, episode;
         if (id.includes(':')) {
             [imdbId, season, episode] = id.split(':');
         }
 
-        const subs = await opensubs.searchSubtitles(imdbId, season, episode, process.env.OPENSUBTITLES_API_KEY);
+        const subs = await opensubs.searchSubtitles(imdbId, season, episode);
         if (!subs || subs.length === 0) {
             return res.status(404).send('No English subtitles found for this movie/episode.');
         }
 
-        // TRY MULTIPLE SUBS IN CASE OF 503
-        let downloadUrl = null;
         let englishSrt = null;
-
-        for (let i = 0; i < Math.min(subs.length, 5); i++) {
+        // Try the first 3 subtitles from proxy
+        for (let i = 0; i < Math.min(subs.length, 3); i++) {
             const currentSub = subs[i];
-            console.log(`[OpenSubs] Trying subtitle choice #${i + 1} (ID: ${currentSub.attributes.files[0].file_id})...`);
-            
-            downloadUrl = await opensubs.getDownloadLink(
-                currentSub.attributes.files[0].file_id, 
-                osToken,
-                process.env.OPENSUBTITLES_API_KEY
-            );
-
-            if (downloadUrl) {
-                console.log(`[OpenSubs] Success! Got download link for choice #${i + 1}`);
-                englishSrt = await opensubs.downloadSubtitle(downloadUrl);
-                if (englishSrt) break;
-            } else {
-                console.log(`[OpenSubs] Choice #${i + 1} failed with 503. Trying next...`);
-            }
+            console.log(`[Proxy] Downloading subtitle #${i + 1}...`);
+            englishSrt = await opensubs.downloadSubtitle(currentSub.url);
+            if (englishSrt) break;
         }
         
         if (!englishSrt) {
-            console.log('[Fallback] OpenSubtitles failed. Trying SubDL...');
-            if (process.env.SUBDL_API_KEY) {
-                const subdlSubs = await subdl.searchSubtitles(imdbId, process.env.SUBDL_API_KEY);
-                if (subdlSubs && subdlSubs.length > 0) {
-                    // Try the first 3 SubDL subs
-                    for (let i = 0; i < Math.min(subdlSubs.length, 3); i++) {
-                        const link = `https://subdl.com/subtitle/${subdlSubs[i].sd_id}`; // Simplified link logic
-                        // Actually SubDL gives a full download link in the API sometimes
-                        // Let's use the provided download link if available
-                        const dlLink = subdlSubs[i].url || subdlSubs[i].download_url;
-                        if (dlLink) {
-                            englishSrt = await subdl.downloadSubtitle(dlLink);
-                            if (englishSrt) {
-                                console.log('[SubDL] Success! Downloaded from SubDL.');
-                                break;
-                            }
-                        }
-                    }
-                }
-            } else {
-                console.log('[Fallback] SubDL API Key missing. Skipping fallback.');
-            }
-        }
-
-        if (!englishSrt) {
-            return res.status(500).send('All subtitle sources failed (OpenSubtitles 503 & SubDL). Please try again later.');
+            return res.status(500).send('Failed to download subtitles from all proxy sources.');
         }
 
         // 3. Translate

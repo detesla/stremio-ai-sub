@@ -81,7 +81,7 @@ app.get('/sub/:provider/:id.srt', async (req, res) => {
         let srtContent = cache.getCachedSubtitle(id, provider);
         if (srtContent) {
             console.log(`Serving ${id} from cache (${provider})`);
-            return res.header('Content-Type', 'text/plain').send(srtContent);
+            return res.header('Content-Type', 'text/plain; charset=utf-8').send(srtContent);
         }
 
         // 2. Search Subtitles via Proxy
@@ -91,18 +91,19 @@ app.get('/sub/:provider/:id.srt', async (req, res) => {
             [imdbId, season, episode] = id.split(':');
         }
 
-        let subs = await opensubs.searchSubtitles(imdbId, season, episode);
-        
-        // Fallback to SubDL if OpenSubs finds nothing
-        if (!subs || subs.length === 0) {
-            console.log(`[Proxy] No subtitles found on OpenSubs, trying SubDL...`);
-            const subdlApiKey = process.env.SUBDL_API_KEY;
-            if (subdlApiKey) {
-                const subdlSubs = await subdl.searchSubtitles(imdbId, season, episode, subdlApiKey);
-                if (subdlSubs && subdlSubs.length > 0) {
-                    subs = subdlSubs; // Use subdl results
-                }
+        let subs = null;
+        const subdlApiKey = process.env.SUBDL_API_KEY;
+        if (subdlApiKey) {
+            const subdlSubs = await subdl.searchSubtitles(imdbId, season, episode, subdlApiKey);
+            if (subdlSubs && subdlSubs.length > 0) {
+                subs = subdlSubs;
             }
+        }
+
+        // Fallback to OpenSubs if SubDL finds nothing
+        if (!subs || subs.length === 0) {
+            console.log(`[Proxy] No subtitles found on SubDL, trying OpenSubs...`);
+            subs = await opensubs.searchSubtitles(imdbId, season, episode);
         }
 
         if (!subs || subs.length === 0) {
@@ -133,7 +134,7 @@ app.get('/sub/:provider/:id.srt', async (req, res) => {
         
         // 4. Cache and Send
         cache.saveToCache(id, provider, translatedSrt);
-        res.header('Content-Type', 'text/plain').send(translatedSrt);
+        res.header('Content-Type', 'text/plain; charset=utf-8').send(translatedSrt);
 
     } catch (error) {
         console.error('Error processing subtitle:', error);

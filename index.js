@@ -128,14 +128,30 @@ app.get('/sub/:provider/:id.srt', async (req, res) => {
                     const meta = await getMediaMetadata(id, type);
                     if (meta) {
                         const searchTitle = `${meta.name} ${meta.year}`.trim();
-                        subs = await subdl.searchSubtitles(null, season, episode, subdlApiKey, searchTitle);
+                        let foundSubs = await subdl.searchSubtitles(null, season, episode, subdlApiKey, searchTitle);
+                        
+                        // Filter by season/episode to be absolutely sure
+                        if (season && episode && foundSubs && foundSubs.length > 0) {
+                            const sCode = `S${season.padStart(2, '0')}`;
+                            const eCode = `E${episode.padStart(2, '0')}`;
+                            const fullCode = `${sCode}${eCode}`.toLowerCase();
+                            
+                            foundSubs = foundSubs.filter(s => {
+                                // Priority 1: Check structured fields
+                                if (s.season == season && s.episode == episode) return true;
+                                // Priority 2: Check release name for S01E01 etc.
+                                if (s.release.toLowerCase().includes(fullCode)) return true;
+                                return false;
+                            });
+                        }
+                        subs = foundSubs;
                     }
                 }
             }
 
             // Fallback to OpenSubs if SubDL finds nothing
             if (!subs || subs.length === 0) {
-                console.log(`[Proxy] No subtitles found on SubDL, trying OpenSubs...`);
+                console.log(`[Proxy] No subtitles found on SubDL (filtered), trying OpenSubs...`);
                 subs = await opensubs.searchSubtitles(imdbId, season, episode);
             }
 

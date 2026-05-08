@@ -219,4 +219,17 @@ app.listen(PORT, () => {
     console.log('SUBDL_API_KEY:', process.env.SUBDL_API_KEY ? '✅' : '❌');
     console.log('PUTER_AUTH_TOKEN:', process.env.PUTER_AUTH_TOKEN ? '✅' : '❌');
     console.log('-------------------------');
+
+    // List Puter models to help user find the right ID
+    if (process.env.PUTER_AUTH_TOKEN) {
+        const puterClient = new axios.Axios({ baseURL: 'https://api.puter.com/puterai/openai/v1/' });
+        axios.get('https://api.puter.com/puterai/openai/v1/models', {
+            headers: { 'Authorization': `Bearer ${process.env.PUTER_AUTH_TOKEN.split(',')[0].trim()}` }
+        }).then(res => {
+            if (res.data && res.data.data) {
+                const ids = res.data.data.slice(0, 15).map(m => m.id);
+                console.log('[Puter] Available Models (Top 15):', ids.join(', '));
+            }
+        }).catch(err => console.log('[Puter] Could not list models:', err.message));
+    }
 });

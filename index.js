@@ -110,11 +110,17 @@ app.get('/sub/:provider/:id.srt', async (req, res) => {
         }
 
         let englishSrt = null;
-        // Try the first 3 subtitles from proxy
+        // Try the first 3 subtitles
         for (let i = 0; i < Math.min(subs.length, 3); i++) {
             const currentSub = subs[i];
-            console.log(`[Proxy] Downloading subtitle #${i + 1}...`);
-            englishSrt = await opensubs.downloadSubtitle(currentSub.url);
+            console.log(`[Proxy] Downloading subtitle #${i + 1} from ${currentSub.url.includes('subdl') ? 'SubDL' : 'OpenSubs'}...`);
+            
+            if (currentSub.url.includes('subdl.com')) {
+                englishSrt = await subdl.downloadSubtitle(currentSub.url);
+            } else {
+                englishSrt = await opensubs.downloadSubtitle(currentSub.url);
+            }
+            
             if (englishSrt) break;
         }
         

@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const { addonBuilder, getRouter } = require('stremio-addon-sdk');
 const opensubs = require('./lib/opensubs');
+const subdl = require('./lib/subdl');
 const translator = require('./lib/translator');
 const cache = require('./lib/cache');
 
@@ -128,7 +129,32 @@ app.get('/sub/:provider/:id.srt', async (req, res) => {
         }
         
         if (!englishSrt) {
-            return res.status(500).send('OpenSubtitles is currently unstable (Error 503). All 5 attempts failed. Please try again later.');
+            console.log('[Fallback] OpenSubtitles failed. Trying SubDL...');
+            if (process.env.SUBDL_API_KEY) {
+                const subdlSubs = await subdl.searchSubtitles(imdbId, process.env.SUBDL_API_KEY);
+                if (subdlSubs && subdlSubs.length > 0) {
+                    // Try the first 3 SubDL subs
+                    for (let i = 0; i < Math.min(subdlSubs.length, 3); i++) {
+                        const link = `https://subdl.com/subtitle/${subdlSubs[i].sd_id}`; // Simplified link logic
+                        // Actually SubDL gives a full download link in the API sometimes
+                        // Let's use the provided download link if available
+                        const dlLink = subdlSubs[i].url || subdlSubs[i].download_url;
+                        if (dlLink) {
+                            englishSrt = await subdl.downloadSubtitle(dlLink);
+                            if (englishSrt) {
+                                console.log('[SubDL] Success! Downloaded from SubDL.');
+                                break;
+                            }
+                        }
+                    }
+                }
+            } else {
+                console.log('[Fallback] SubDL API Key missing. Skipping fallback.');
+            }
+        }
+
+        if (!englishSrt) {
+            return res.status(500).send('All subtitle sources failed (OpenSubtitles 503 & SubDL). Please try again later.');
         }
 
         // 3. Translate

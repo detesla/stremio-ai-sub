@@ -177,5 +177,6 @@ app.listen(PORT, () => {
     console.log('GROQ_API_KEY:', process.env.GROQ_API_KEY ? '✅' : '❌');
     console.log('OPENSUBTITLES_API_KEY:', process.env.OPENSUBTITLES_API_KEY ? '✅' : '❌');
     console.log('OPENSUBTITLES_USERNAME:', process.env.OPENSUBTITLES_USERNAME ? '✅' : '❌');
+    console.log('SUBDL_API_KEY:', process.env.SUBDL_API_KEY ? '✅' : '❌');
     console.log('-------------------------');
 });

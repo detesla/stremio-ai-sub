@@ -91,9 +91,22 @@ app.get('/sub/:provider/:id.srt', async (req, res) => {
             [imdbId, season, episode] = id.split(':');
         }
 
-        const subs = await opensubs.searchSubtitles(imdbId, season, episode);
+        let subs = await opensubs.searchSubtitles(imdbId, season, episode);
+        
+        // Fallback to SubDL if OpenSubs finds nothing
         if (!subs || subs.length === 0) {
-            return res.status(404).send('No English subtitles found for this movie/episode.');
+            console.log(`[Proxy] No subtitles found on OpenSubs, trying SubDL...`);
+            const subdlApiKey = process.env.SUBDL_API_KEY;
+            if (subdlApiKey) {
+                const subdlSubs = await subdl.searchSubtitles(imdbId, season, episode, subdlApiKey);
+                if (subdlSubs && subdlSubs.length > 0) {
+                    subs = subdlSubs; // Use subdl results
+                }
+            }
+        }
+
+        if (!subs || subs.length === 0) {
+            return res.status(404).send('No English subtitles found on OpenSubs or SubDL.');
         }
 
         let englishSrt = null;

@@ -42,6 +42,12 @@ builder.defineSubtitlesHandler(async (args) => {
             url: `${baseUrl}/sub/groq/${id}.srt`,
             lang: 'vie',
             label: '🇻🇳 AI Vietnamese (AI Dịch)'
+        },
+        {
+            id: `ai_puter_${id}`,
+            url: `${baseUrl}/sub/puter/${id}.srt`,
+            lang: 'vie',
+            label: '🇻🇳 AI Vietnamese (Puter AI)'
         }
     ];
 
@@ -90,7 +96,11 @@ let osToken = null;
 
 app.get('/sub/:provider/:id.srt', async (req, res) => {
     const { provider, id } = req.params;
-    const apiKey = provider === 'gemini' ? process.env.GEMINI_API_KEY : process.env.GROQ_API_KEY;
+    
+    let apiKey = '';
+    if (provider === 'gemini') apiKey = process.env.GEMINI_API_KEY;
+    else if (provider === 'groq') apiKey = process.env.GROQ_API_KEY;
+    else if (provider === 'puter') apiKey = process.env.PUTER_AUTH_TOKEN;
     
     if (!apiKey) {
         return res.status(500).send('API Key missing for provider ' + provider);
@@ -207,5 +217,6 @@ app.listen(PORT, () => {
     console.log('OPENSUBTITLES_API_KEY:', process.env.OPENSUBTITLES_API_KEY ? '✅' : '❌');
     console.log('OPENSUBTITLES_USERNAME:', process.env.OPENSUBTITLES_USERNAME ? '✅' : '❌');
     console.log('SUBDL_API_KEY:', process.env.SUBDL_API_KEY ? '✅' : '❌');
+    console.log('PUTER_AUTH_TOKEN:', process.env.PUTER_AUTH_TOKEN ? '✅' : '❌');
     console.log('-------------------------');
 });

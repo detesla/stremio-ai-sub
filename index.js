@@ -168,7 +168,7 @@ app.get('/sub/:provider/:id.srt', async (req, res) => {
                 }
                 
                 if (currentSub.url.includes('subdl.com')) {
-                    englishSrt = await subdl.downloadSubtitle(currentSub.url);
+                    englishSrt = await subdl.downloadSubtitle(currentSub.url, season, episode);
                 } else {
                     englishSrt = await opensubs.downloadSubtitle(currentSub.url);
                 }

@@ -104,20 +104,31 @@ app.get('/sub/:provider/:id.srt', async (req, res) => {
             return res.status(404).send('No English subtitles found for this movie/episode.');
         }
 
-        const bestSub = subs[0]; 
-        const downloadUrl = await opensubs.getDownloadLink(
-            bestSub.attributes.files[0].file_id, 
-            osToken,
-            process.env.OPENSUBTITLES_API_KEY
-        );
-        
-        if (!downloadUrl) {
-            return res.status(500).send('Failed to get download link. Check login/API limits.');
-        }
+        // TRY MULTIPLE SUBS IN CASE OF 503
+        let downloadUrl = null;
+        let englishSrt = null;
 
-        const englishSrt = await opensubs.downloadSubtitle(downloadUrl);
+        for (let i = 0; i < Math.min(subs.length, 5); i++) {
+            const currentSub = subs[i];
+            console.log(`[OpenSubs] Trying subtitle choice #${i + 1} (ID: ${currentSub.attributes.files[0].file_id})...`);
+            
+            downloadUrl = await opensubs.getDownloadLink(
+                currentSub.attributes.files[0].file_id, 
+                osToken,
+                process.env.OPENSUBTITLES_API_KEY
+            );
+
+            if (downloadUrl) {
+                console.log(`[OpenSubs] Success! Got download link for choice #${i + 1}`);
+                englishSrt = await opensubs.downloadSubtitle(downloadUrl);
+                if (englishSrt) break;
+            } else {
+                console.log(`[OpenSubs] Choice #${i + 1} failed with 503. Trying next...`);
+            }
+        }
+        
         if (!englishSrt) {
-            return res.status(500).send('Failed to download source subtitle content.');
+            return res.status(500).send('OpenSubtitles is currently unstable (Error 503). All 5 attempts failed. Please try again later.');
         }
 
         // 3. Translate

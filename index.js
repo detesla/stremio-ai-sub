@@ -5,6 +5,7 @@ const opensubs = require('./lib/opensubs');
 const subdl = require('./lib/subdl');
 const translator = require('./lib/translator');
 const cache = require('./lib/cache');
+const axios = require('axios');
 
 const app = express();
 const PORT = process.env.PORT || 7000;
@@ -65,6 +66,22 @@ app.use((req, res, next) => {
 // Use official Stremio SDK router
 app.use(addonRouter);
 
+// Helper to get title from Cinemeta
+async function getMediaTitle(id, type) {
+    try {
+        const imdbId = id.split(':')[0];
+        const url = `https://v3-cinemeta.strem.io/meta/${type}/${imdbId}.json`;
+        console.log(`[Cinemeta] Fetching title for ${imdbId}...`);
+        const response = await axios.get(url, { timeout: 5000 });
+        if (response.data && response.data.meta && response.data.meta.name) {
+            return response.data.meta.name;
+        }
+    } catch (err) {
+        console.error('[Cinemeta] Error:', err.message);
+    }
+    return null;
+}
+
 // Actual Subtitle Content Route
 let osToken = null;
 
@@ -84,49 +101,66 @@ app.get('/sub/:provider/:id.srt', async (req, res) => {
             return res.header('Content-Type', 'text/plain; charset=utf-8').send(srtContent);
         }
 
-        // 2. Search Subtitles via Proxy
-        let imdbId = id;
-        let season, episode;
-        if (id.includes(':')) {
-            [imdbId, season, episode] = id.split(':');
-        }
-
-        let subs = null;
-        const subdlApiKey = process.env.SUBDL_API_KEY;
-        if (subdlApiKey) {
-            const subdlSubs = await subdl.searchSubtitles(imdbId, season, episode, subdlApiKey);
-            if (subdlSubs && subdlSubs.length > 0) {
-                subs = subdlSubs;
-            }
-        }
-
-        // Fallback to OpenSubs if SubDL finds nothing
-        if (!subs || subs.length === 0) {
-            console.log(`[Proxy] No subtitles found on SubDL, trying OpenSubs...`);
-            subs = await opensubs.searchSubtitles(imdbId, season, episode);
-        }
-
-        if (!subs || subs.length === 0) {
-            return res.status(404).send('No English subtitles found on OpenSubs or SubDL.');
-        }
-
-        let englishSrt = null;
-        // Try the first 3 subtitles
-        for (let i = 0; i < Math.min(subs.length, 3); i++) {
-            const currentSub = subs[i];
-            console.log(`[Proxy] Downloading subtitle #${i + 1} from ${currentSub.url.includes('subdl') ? 'SubDL' : 'OpenSubs'}...`);
-            
-            if (currentSub.url.includes('subdl.com')) {
-                englishSrt = await subdl.downloadSubtitle(currentSub.url);
-            } else {
-                englishSrt = await opensubs.downloadSubtitle(currentSub.url);
-            }
-            
-            if (englishSrt) break;
-        }
+        // 2. Search & Download English Subtitles (if not cached)
+        let englishSrt = cache.getCachedEnglish(id);
         
         if (!englishSrt) {
-            return res.status(500).send('Failed to download subtitles from all proxy sources.');
+            let imdbId = id;
+            let season, episode;
+            if (id.includes(':')) {
+                [imdbId, season, episode] = id.split(':');
+            }
+
+            let subs = null;
+            const subdlApiKey = process.env.SUBDL_API_KEY;
+            
+            // Try SubDL with ID first
+            if (subdlApiKey) {
+                subs = await subdl.searchSubtitles(imdbId, season, episode, subdlApiKey);
+                
+                // FALLBACK: Search by Title if ID fails
+                if (!subs || subs.length === 0) {
+                    console.log(`[Proxy] No subtitles found by ID on SubDL, trying Title search...`);
+                    const type = id.includes(':') ? 'series' : 'movie';
+                    const title = await getMediaTitle(id, type);
+                    if (title) {
+                        subs = await subdl.searchSubtitles(null, season, episode, subdlApiKey, title);
+                    }
+                }
+            }
+
+            // Fallback to OpenSubs if SubDL finds nothing
+            if (!subs || subs.length === 0) {
+                console.log(`[Proxy] No subtitles found on SubDL, trying OpenSubs...`);
+                subs = await opensubs.searchSubtitles(imdbId, season, episode);
+            }
+
+            if (!subs || subs.length === 0) {
+                return res.status(404).send('No English subtitles found.');
+            }
+
+            // Download the first working subtitle
+            for (let i = 0; i < Math.min(subs.length, 3); i++) {
+                const currentSub = subs[i];
+                console.log(`[Proxy] Downloading subtitle #${i + 1} from ${currentSub.url.includes('subdl') ? 'SubDL' : 'OpenSubs'}...`);
+                
+                if (currentSub.url.includes('subdl.com')) {
+                    englishSrt = await subdl.downloadSubtitle(currentSub.url);
+                } else {
+                    englishSrt = await opensubs.downloadSubtitle(currentSub.url);
+                }
+                
+                if (englishSrt) break;
+            }
+            
+            if (!englishSrt) {
+                return res.status(500).send('Failed to download subtitles from all sources.');
+            }
+
+            // Cache the English one for the next provider request (Gemini/Groq)
+            cache.saveToEnglish(id, englishSrt);
+        } else {
+            console.log(`[Proxy] Using cached English SRT for ${id}`);
         }
 
         // 3. Translate

@@ -48,6 +48,12 @@ builder.defineSubtitlesHandler(async (args) => {
             url: `${baseUrl}/sub/puter/${id}.srt`,
             lang: 'vie',
             label: '🇻🇳 AI Vietnamese (Puter AI)'
+        },
+        {
+            id: `ai_openrouter_${id}`,
+            url: `${baseUrl}/sub/openrouter/${id}.srt`,
+            lang: 'vie',
+            label: '🇻🇳 AI Vietnamese (OpenRouter)'
         }
     ];
 
@@ -101,6 +107,7 @@ app.get('/sub/:provider/:id.srt', async (req, res) => {
     if (provider === 'gemini') apiKey = process.env.GEMINI_API_KEY;
     else if (provider === 'groq') apiKey = process.env.GROQ_API_KEY;
     else if (provider === 'puter') apiKey = process.env.PUTER_AUTH_TOKEN;
+    else if (provider === 'openrouter') apiKey = process.env.OPENROUTER_API_KEY;
     
     if (!apiKey) {
         return res.status(500).send('API Key missing for provider ' + provider);
@@ -218,6 +225,7 @@ app.listen(PORT, () => {
     console.log('OPENSUBTITLES_USERNAME:', process.env.OPENSUBTITLES_USERNAME ? '✅' : '❌');
     console.log('SUBDL_API_KEY:', process.env.SUBDL_API_KEY ? '✅' : '❌');
     console.log('PUTER_AUTH_TOKEN:', process.env.PUTER_AUTH_TOKEN ? '✅' : '❌');
+    console.log('OPENROUTER_API_KEY:', process.env.OPENROUTER_API_KEY ? '✅' : '❌');
     console.log('-------------------------');
 
     // List Puter models to help user find the right ID

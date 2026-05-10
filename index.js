@@ -203,12 +203,30 @@ app.get('/sub/:provider/:id.srt', async (req, res) => {
             console.log(`[Proxy] Using cached English SRT for ${id}`);
         }
 
-        // 3. Translate
-        const translatedSrt = await translator.translateSrt(englishSrt, provider, apiKey);
+// 3. Translate with locking to prevent duplicate processes
+        if (!global.pendingTranslations) global.pendingTranslations = {};
+        const lockKey = `${id}_${provider}`;
+
+        if (global.pendingTranslations[lockKey]) {
+            console.log(`[AI] Translation already in progress for ${lockKey}. Waiting...`);
+            srtContent = await global.pendingTranslations[lockKey];
+        } else {
+            try {
+                const translationPromise = translator.translateSrt(englishSrt, provider, apiKey);
+                global.pendingTranslations[lockKey] = translationPromise;
+                srtContent = await translationPromise;
+            } finally {
+                delete global.pendingTranslations[lockKey];
+            }
+        }
         
         // 4. Cache and Send
-        cache.saveToCache(id, provider, translatedSrt);
-        res.header('Content-Type', 'text/plain; charset=utf-8').send(translatedSrt);
+        if (srtContent) {
+            cache.saveToCache(id, provider, srtContent);
+            res.header('Content-Type', 'text/plain; charset=utf-8').send(srtContent);
+        } else {
+            res.status(500).send('Translation failed.');
+        }
 
     } catch (error) {
         console.error('Error processing subtitle:', error);
